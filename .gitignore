@@ -3,3 +3,7 @@ venv
 __pycache__
 .terraform
 *.zip
+.terraform*
+*.tfstate.backup
+*.tfstate
+.api_gateway_url

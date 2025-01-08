@@ -8,8 +8,8 @@ table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
 
 def handler(event, context):
     try:
-        # Get the short URL from proxy path parameter
-        short_url = event['pathParameters']['proxy']
+        print(event)
+        short_url = event['pathParameters']['shortUrl']
         print(f"Requested short URL: {short_url}")  # Add logging
         
         # Get the mapping from DynamoDB

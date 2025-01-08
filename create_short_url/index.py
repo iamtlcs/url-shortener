@@ -3,6 +3,8 @@ import json
 import time
 import boto3
 from decimal import Decimal
+import random
+import string
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
@@ -17,7 +19,14 @@ def handler(event, context):
         
         body = json.loads(event['body'])
         long_url = body['url']
-        custom_suffix = body['suffix']
+        
+        def generate_unique_suffix():
+            suffix_length = 5
+            characters = string.ascii_letters + string.digits
+            unique_suffix = ''.join(random.choice(characters) for _ in range(suffix_length))
+            return unique_suffix
+        
+        custom_suffix = body.get('suffix', generate_unique_suffix())
         
         # Set expiration time (10 minutes from now)
         expiry_time = int(time.time()) + 600

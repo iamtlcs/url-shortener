@@ -164,6 +164,10 @@ resource "aws_api_gateway_method" "create" {
   resource_id   = aws_api_gateway_resource.create.id
   http_method   = "POST"
   authorization = "NONE"
+  
+  request_parameters = {
+    "method.request.path.url" = true
+  }
 }
 
 resource "aws_api_gateway_integration" "create" {
@@ -173,7 +177,10 @@ resource "aws_api_gateway_integration" "create" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.create_short_url.invoke_arn
-  timeout_milliseconds    = 29000
+  
+  request_parameters = {
+    "integration.request.path.url" = "method.request.path.url"
+  }
 }
 
 # GET method for redirecting
@@ -205,37 +212,6 @@ resource "aws_api_gateway_integration" "redirect" {
   request_parameters = {
     "integration.request.path.shortUrl" = "method.request.path.shortUrl"
   }
-}
-
-resource "aws_api_gateway_method_response" "redirect" {
-  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
-  resource_id = aws_api_gateway_resource.redirect.id
-  http_method = aws_api_gateway_method.redirect.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
-    "method.response.header.Location" = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "redirect" {
-  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
-  resource_id = aws_api_gateway_resource.redirect.id
-  http_method = aws_api_gateway_method.redirect.http_method
-  status_code = aws_api_gateway_method_response.redirect.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'*'"
-  }
-
-  depends_on = [
-    aws_api_gateway_integration.redirect
-  ]
 }
 
 # Deployment
