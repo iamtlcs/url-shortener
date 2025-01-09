@@ -30,6 +30,110 @@ provider "aws" {
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+# Create the HTML content from template
+data "template_file" "index_html" {
+  template = file("index.html.tftpl")
+  vars = {
+    api_endpoint = aws_api_gateway_stage.prod.invoke_url
+  }
+}
+
+# Upload the rendered HTML
+resource "aws_s3_object" "index" {
+  bucket         = aws_s3_bucket.url_shortener_bucket.id
+  key            = "index.html"
+  content        = data.template_file.index_html.rendered
+  content_type   = "text/html"
+  storage_class  = "STANDARD"
+
+  # Force update by including the API Gateway URL in the etag
+  etag = md5(join("", [data.template_file.index_html.rendered, aws_api_gateway_stage.prod.invoke_url]))
+
+  # Disable caching for the index.html
+  cache_control = "no-cache, no-store, must-revalidate"
+}
+
+# S3 bucket for simple HTML page
+resource "aws_s3_bucket" "url_shortener_bucket" {
+  bucket_prefix = "url-shortener"
+}
+
+# Bucket ownership controls
+resource "aws_s3_bucket_ownership_controls" "url_shortener_bucket_ownership" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+# Bucket public access block
+resource "aws_s3_bucket_public_access_block" "url_shortener_bucket_public_access" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# Bucket ACL
+resource "aws_s3_bucket_acl" "url_shortener_bucket_acl" {
+  depends_on = [
+    aws_s3_bucket_ownership_controls.url_shortener_bucket_ownership,
+    aws_s3_bucket_public_access_block.url_shortener_bucket_public_access,
+  ]
+
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+  acl    = "public-read"
+}
+
+# Enable static website hosting
+resource "aws_s3_bucket_website_configuration" "url_shortener_website" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html"
+  }
+}
+
+# Add bucket policy to allow public read access
+resource "aws_s3_bucket_policy" "allow_public_read" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.url_shortener_bucket.arn}/*"
+      },
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.url_shortener_bucket_public_access
+  ]
+}
+
+# Lambda functions ZIP files
+resource "aws_s3_object" "create_short_url_zip" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+  key    = "create_short_url.zip"
+  source = "create_short_url.zip"
+}
+
+resource "aws_s3_object" "redirect_url_zip" {
+  bucket = aws_s3_bucket.url_shortener_bucket.id
+  key    = "redirect_url.zip"
+  source = "redirect_url.zip"
+}
+
 # DynamoDB table to store URL mappings
 resource "aws_dynamodb_table" "url_mappings" {
   name           = "url-mappings"
@@ -96,7 +200,8 @@ resource "aws_iam_role_policy" "lambda_policy" {
 
 # Lambda functions
 resource "aws_lambda_function" "create_short_url" {
-  filename         = "create_short_url.zip"
+  s3_bucket        = aws_s3_bucket.url_shortener_bucket.id
+  s3_key           = "create_short_url.zip"
   function_name    = "create_short_url"
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
@@ -112,7 +217,8 @@ resource "aws_lambda_function" "create_short_url" {
 }
 
 resource "aws_lambda_function" "redirect_url" {
-  filename         = "redirect_url.zip"
+  s3_bucket        = aws_s3_bucket.url_shortener_bucket.id
+  s3_key           = "redirect_url.zip"
   function_name    = "redirect_url"
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
@@ -148,7 +254,6 @@ resource "aws_lambda_permission" "redirect_api_gateway" {
 }
 
 # API Gateway
-
 resource "aws_api_gateway_rest_api" "url_shortener" {
   name = "url-shortener"
 }
@@ -173,7 +278,19 @@ resource "aws_api_gateway_rest_api_policy" "api_policy" {
         Principal = "*"
         Action = "execute-api:Invoke"
         Resource = "arn:aws:execute-api:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.url_shortener.id}/*/*/*"
-      }
+      },
+      # Uncomment the following block to restrict access to the API to a specific IP address
+      # {
+      #   "Effect": "Deny",
+      #   "Principal": "*",
+      #   "Action": "execute-api:Invoke",
+      #   "Resource": "execute-api:/*/*/*",
+      #   "Condition": {
+      #     "NotIpAddress": {
+      #       "aws:SourceIp": ["218.189.44.128/25"]
+      #     }
+      #   }
+      # }
     ]
   })
 }
@@ -390,4 +507,14 @@ resource "aws_api_gateway_stage" "prod" {
 
 output "api_gateway_invoke_url" {
   value = aws_api_gateway_stage.prod.invoke_url
+}
+
+output "simple_html_page_url" {
+    description = "url of the bucket"
+    value = "http://${aws_s3_bucket.url_shortener_bucket.bucket}.s3-website-${data.aws_region.current.name}.amazonaws.com"
+}
+
+output "s3_bucket_name" {
+    description = "name of the bucket"
+    value = aws_s3_bucket.url_shortener_bucket.bucket
 }

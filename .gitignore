@@ -6,4 +6,4 @@ __pycache__
 .terraform*
 *.tfstate.backup
 *.tfstate
-.api_gateway_url
+validators*

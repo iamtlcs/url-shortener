@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>URL Shortener</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="url"], input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .success {
+            color: #28a745;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>URL Shortener</h1>
+        <div class="form-group">
+            <label for="longUrl">Long URL:</label>
+            <input type="url" id="longUrl" placeholder="https://example.com" required>
+        </div>
+        <div class="form-group">
+            <label for="suffix">Custom Suffix (optional):</label>
+            <input type="text" id="suffix" placeholder="e.g., my-link">
+        </div>
+        <button onclick="createShortUrl()">Create Short URL</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+
+        async function createShortUrl() {
+            const resultDiv = document.getElementById("result");
+            const url = document.getElementById("longUrl").value;
+            const suffix = document.getElementById("suffix").value;
+
+            if (!url.trim()) {
+                resultDiv.className = "error";
+                resultDiv.textContent = "Please enter a valid URL";
+                return;
+            }
+            let body = { url }
+            if (suffix.trim()) {
+                body.suffix = suffix
+            }
+            console.log({ body })
+
+            try {
+                resultDiv.textContent = "Creating short URL...";
+                const response = await fetch("${api_endpoint}/create", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                console.log({ data })
+                const shortUrlSuffix = data.short_url
+                
+                if (response.ok) {
+                    resultDiv.className = "success";
+                    const shortUrl = "${api_endpoint}" + "/" + shortUrlSuffix;
+                    resultDiv.innerHTML = `
+                        <strong>Success!</strong><br>
+                        Short URL: <a href="` + shortUrl + `" target="_blank">` + shortUrl + `</a>
+                    `;
+                } else {
+                    resultDiv.className = "error";
+                    const errorMsg = data.error
+                    resultDiv.textContent = "Error: " + errorMsg;
+                }
+            } catch (error) {
+                resultDiv.className = "error";
+                resultDiv.textContent = "Error: " + error.message;
+            }
+        }
+
+        // Add enter key support
+        document.getElementById("longUrl").addEventListener("keypress", function(e) {
+            if (e.key === "Enter") {
+                createShortUrl();
+            }
+        });
+
+        document.getElementById("suffix").addEventListener("keypress", function(e) {
+            if (e.key === "Enter") {
+                createShortUrl();
+            }
+        });
+    </script>
+</body>
+</html>

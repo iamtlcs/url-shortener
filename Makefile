@@ -36,7 +36,6 @@ apply_terraform: zip_all
 	terraform init
 	terraform apply -auto-approve
 	@echo "Terraform configuration applied."
-	
 
 destroy_terraform:
 	@echo "Destroying Terraform configuration..."
@@ -58,3 +57,7 @@ testNotUrl:
 	curl -X POST $(shell terraform output -raw api_gateway_invoke_url)/create \
 		-H "Content-Type: application/json" \
 		-d '{"url": "example.com", "suffix": "H3LL0"}'
+
+uploadHtml:
+	@echo "Uploading HTML file..."
+	aws s3 cp ./index.html s3://$(shell terraform output -raw s3_bucket_name)/index.html
