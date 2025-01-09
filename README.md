@@ -2,11 +2,7 @@
 
 ## ## How to run the code
 
-To deploy the code and infrastructure on AWS easily using the \`Makefile\`, start by creating an \`.env\` file as shown below:
-
-## How to run the code
-
-With leveraging `Makefile`, the code and infrastructure on AWS can be deployed with ease. But first, please add `.env` like below:
+To deploy the code and infrastructure on AWS easily using the `Makefile`, start by creating an `.env` file as shown below:
 
 ```
 AWS_ACCESS_KEY_ID=<your_aws_access_key_id>
@@ -21,10 +17,6 @@ After creating the `.env` file, run `make apply_terraform` to deploy the cloud i
 
 The Terraform output will be in the following format:
 
-After creating the `.env` file, please do `make apply_terraform` which deploy the cloud infrastructure and the python code in the `./create_short_url` and `./redirect_url`. They are divided since single responsibility for each API route is preferred. Only the `create_short_url` contains `requirements.txt` because I used `validator` to check whether the POST request is an actual URL and the another packages are either built in with Python or with AWS Lambda instances, like `boto3`. Using the ZIP file uploading method is decided rather than the Docker Image since the code are pretty light weighted.
-
-The Terraform output will be in the following format:The output of the Terra is in the following format:
-
 ```
 api_gateway_invoke_url = "https://s5ge7oy690.execute-api.ap-southeast-1.amazonaws.com/prod"
 s3_bucket_name = "url-shortener20250109091839172000000001"
@@ -32,7 +24,6 @@ simple_html_page_url = "http://url-shortener20250109091839172000000001.s3-websit
 ```
 
 Click the `simple_html_page_url` link to view the work.
-
 
 ## Infrastructure (Terraform)
 
@@ -99,7 +90,7 @@ resource "aws_api_gateway_rest_api_policy" "api_policy" {
 
 ### `create_short_url`
 
- This POST request expects JSON like:
+This POST request expects JSON like:
 
 This is a POST request which receives a JSON like the following:
 
