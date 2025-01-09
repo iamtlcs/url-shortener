@@ -6,6 +6,13 @@ from boto3.dynamodb.conditions import Key
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
 
+headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST',
+    'Access-Control-Allow-Headers': 'Content-Type'
+}
+
 def handler(event, context):
     try:
         print(event)
@@ -23,10 +30,7 @@ def handler(event, context):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
+                'headers': headers,
                 'body': json.dumps({'error': 'URL not found'})
             }
         
@@ -37,8 +41,8 @@ def handler(event, context):
         return {
             'statusCode': 301,
             'headers': {
+                **headers,
                 'Location': long_url,
-                'Access-Control-Allow-Origin': '*',
                 'Cache-Control': 'no-cache'
             },
             'body': ''

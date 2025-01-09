@@ -12,20 +12,48 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            background-color: #f0f0f0;
         }
         .container {
             text-align: center;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
         }
         input[type="text"] {
-            width: 300px;
+            width: 80%;
+            max-width: 400px;
             padding: 10px;
             margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
         button {
             padding: 10px 20px;
+            border: none;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
         }
         .result {
             margin-top: 20px;
+            color: #333;
+        }
+        .result a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .result a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -33,6 +61,9 @@
     <div class="container">
         <h1>URL Shortener</h1>
         <input type="text" id="longUrl" placeholder="Enter long URL">
+        <br>
+        <input type="text" id="suffix" placeholder="Enter Suffix for short URL">
+        <br>
         <button onclick="generateShortUrl()">Generate Short URL</button>
         <div class="result" id="result"></div>
     </div>
@@ -40,25 +71,37 @@
     <script>
         async function generateShortUrl() {
             const url = document.getElementById('longUrl').value;
+            const suffix = document.getElementById('suffix').value;
             const resultDiv = document.getElementById('result');
-            const apiGatewayUrl = 'https://za6xe3eayl.execute-api.ap-southeast-1.amazonaws.com/prod/create'; // Replace with your actual URL
-            
+            const apiGatewayUrl = 'https://dqy6eu1qta.execute-api.ap-southeast-1.amazonaws.com/prod'; // API Gateway URL
+            const route = '/create';
             try {
-                const response = await fetch(apiGatewayUrl, {
+                console.log({ url });
+                console.log({ suffix });
+                let requestBody = { url };
+                if (suffix) {
+                    requestBody.suffix = suffix;
+                }
+                const response = await fetch(apiGatewayUrl + route, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify(requestBody)
                 });
+                console.log({ response });
 
                 if (response.ok) {
                     const data = await response.json();
-                    resultDiv.innerHTML = `<p>Short URL: <a href="${data.shortUrl}" target="_blank">${data.shortUrl}</a></p>`;
+                    console.log({ data });
+                    resultDiv.innerHTML = `<p>Short URL: <a href="${data.short_url}" target="_blank">${data.short_url}</a></p>`;
                 } else {
-                    resultDiv.innerHTML = `<p>Error: ${response.statusText}</p>`;
+                    const errorData = await response.json();
+                    console.log({errorData});
+                    resultDiv.innerHTML = `<p>Error: ${errorData.error}</p>`;
                 }
             } catch (error) {
+                console.error(error);
                 resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
             }
         }

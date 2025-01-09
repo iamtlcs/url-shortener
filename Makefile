@@ -3,17 +3,19 @@ ZIP_REDIRECT_URL = redirect_url.zip
 CREATE_SHORT_URL_DIR = ./create_short_url
 REDIRECT_URL_DIR = ./redirect_url
 
-.PHONY: all zip_create_short_url zip_redirect_url apply_terraform clean testCreateApi testRedirectApi
+.PHONY: all zip_create_short_url zip_redirect_url apply_terraform clean testApi
 
 all: zip_create_short_url zip_redirect_url apply_terraform
 
 zip_create_short_url:
+	if [ -f $(ZIP_CREATE_SHORT_URL) ]; then rm $(ZIP_CREATE_SHORT_URL); fi
 	@echo "Zipping create_short_url..."
-	cd $(CREATE_SHORT_URL_DIR) && zip -r ../$(ZIP_CREATE_SHORT_URL) .
+	cd $(CREATE_SHORT_URL_DIR) && pip install -r requirements.txt -t . && zip -r ../$(ZIP_CREATE_SHORT_URL) . -x "venv/*"
 
 zip_redirect_url:
+	if [ -f $(ZIP_REDIRECT_URL) ]; then rm $(ZIP_REDIRECT_URL); fi
 	@echo "Zipping redirect_url..."
-	cd $(REDIRECT_URL_DIR) && zip -r ../$(ZIP_REDIRECT_URL) .
+	cd $(REDIRECT_URL_DIR) && zip -r ../$(ZIP_REDIRECT_URL) . -x "venv/*"
 
 zip_all: zip_create_short_url zip_redirect_url
 
@@ -34,7 +36,7 @@ apply_terraform: zip_all
 	terraform init
 	terraform apply -auto-approve
 	@echo "Terraform configuration applied."
-	terraform output | awk '{print $3}' | sed 's/"//g' > .api_gateway_url
+	
 
 destroy_terraform:
 	@echo "Destroying Terraform configuration..."
@@ -47,6 +49,12 @@ clean:
 
 testApi:
 	@echo "Testing create API..."
-	curl -X POST $(shell cat .api_gateway_url)/create \
+	curl -X POST $(shell terraform output -raw api_gateway_invoke_url)/create \
 		-H "Content-Type: application/json" \
 		-d '{"url": "https://www.example.com", "suffix": "H3LL0"}'
+
+testNotUrl:
+	@echo "Testing create API with invalid URL..."
+	curl -X POST $(shell terraform output -raw api_gateway_invoke_url)/create \
+		-H "Content-Type: application/json" \
+		-d '{"url": "example.com", "suffix": "H3LL0"}'

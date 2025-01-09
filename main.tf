@@ -1,5 +1,30 @@
+variable "aws_access_key" {
+  description = "AWS access key"
+  type        = string
+  default     = ""
+}
+
+variable "aws_secret_key" {
+  description = "AWS secret key"
+  type        = string
+  default     = ""
+}
+
+locals {
+  env_vars = { for line in split("\n", file(".env")) : 
+    split("=", line)[0] => split("=", line)[1] if length(split("=", line)) == 2
+  }
+
+  credentials = tomap({
+    access_key = var.aws_access_key != "" ? var.aws_access_key : local.env_vars["AWS_ACCESS_KEY_ID"]
+    secret_key = var.aws_secret_key != "" ? var.aws_secret_key : local.env_vars["AWS_SECRET_ACCESS_KEY"]
+  })
+}
+
 provider "aws" {
-  region = "ap-southeast-1"
+  region     = "ap-southeast-1"
+  access_key = local.credentials["access_key"]
+  secret_key = local.credentials["secret_key"]
 }
 
 data "aws_region" "current" {}
@@ -123,6 +148,7 @@ resource "aws_lambda_permission" "redirect_api_gateway" {
 }
 
 # API Gateway
+
 resource "aws_api_gateway_rest_api" "url_shortener" {
   name = "url-shortener"
 }
@@ -164,10 +190,6 @@ resource "aws_api_gateway_method" "create" {
   resource_id   = aws_api_gateway_resource.create.id
   http_method   = "POST"
   authorization = "NONE"
-  
-  request_parameters = {
-    "method.request.path.url" = true
-  }
 }
 
 resource "aws_api_gateway_integration" "create" {
@@ -177,9 +199,63 @@ resource "aws_api_gateway_integration" "create" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.create_short_url.invoke_arn
+}
+
+# Add OPTIONS method for CORS
+resource "aws_api_gateway_method" "create_options" {
+  rest_api_id   = aws_api_gateway_rest_api.url_shortener.id
+  resource_id   = aws_api_gateway_resource.create.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "create_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+  type        = "MOCK"
   
-  request_parameters = {
-    "integration.request.path.url" = "method.request.path.url"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "create_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "create_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+  status_code = aws_api_gateway_method_response.create_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method_response" "create" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
   }
 }
 
@@ -188,6 +264,22 @@ resource "aws_api_gateway_resource" "redirect" {
   rest_api_id = aws_api_gateway_rest_api.url_shortener.id
   parent_id   = aws_api_gateway_rest_api.url_shortener.root_resource_id
   path_part   = "{shortUrl}"
+}
+
+resource "aws_api_gateway_integration" "redirect" {
+  rest_api_id             = aws_api_gateway_rest_api.url_shortener.id
+  resource_id             = aws_api_gateway_resource.redirect.id
+  http_method             = "GET"
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.redirect_url.invoke_arn
+
+  request_parameters = {}
+
+  depends_on = [
+    aws_lambda_function.redirect_url,
+    aws_api_gateway_method.redirect
+  ]
 }
 
 resource "aws_api_gateway_method" "redirect" {
@@ -199,18 +291,53 @@ resource "aws_api_gateway_method" "redirect" {
   request_parameters = {
     "method.request.path.shortUrl" = true
   }
+  depends_on = [
+    aws_api_gateway_resource.redirect,
+  ]
 }
 
-resource "aws_api_gateway_integration" "redirect" {
-  rest_api_id             = aws_api_gateway_rest_api.url_shortener.id
-  resource_id             = aws_api_gateway_resource.redirect.id
-  http_method             = aws_api_gateway_method.redirect.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.redirect_url.invoke_arn
+# Add OPTIONS method for redirect endpoint
+resource "aws_api_gateway_method" "redirect_options" {
+  rest_api_id   = aws_api_gateway_rest_api.url_shortener.id
+  resource_id   = aws_api_gateway_resource.redirect.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
 
-  request_parameters = {
-    "integration.request.path.shortUrl" = "method.request.path.shortUrl"
+resource "aws_api_gateway_integration" "redirect_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.redirect.id
+  http_method = aws_api_gateway_method.redirect_options.http_method
+  type        = "MOCK"
+  
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "redirect_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.redirect.id
+  http_method = aws_api_gateway_method.redirect_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "redirect_options" {
+  rest_api_id = aws_api_gateway_rest_api.url_shortener.id
+  resource_id = aws_api_gateway_resource.redirect.id
+  http_method = aws_api_gateway_method.redirect_options.http_method
+  status_code = aws_api_gateway_method_response.redirect_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
 
@@ -223,17 +350,30 @@ resource "aws_api_gateway_deployment" "prod" {
     aws_api_gateway_integration.redirect,
     aws_api_gateway_rest_api_policy.api_policy,
     aws_api_gateway_method.create,
-    aws_api_gateway_method.redirect
+    aws_api_gateway_method.redirect,
+    aws_lambda_permission.create_api_gateway,
+    aws_lambda_permission.redirect_api_gateway,
+    aws_api_gateway_resource.create,
+    aws_api_gateway_resource.redirect,
+    aws_api_gateway_method.create_options,
+    aws_api_gateway_integration.create_options,
+    aws_api_gateway_method.redirect_options,
+    aws_api_gateway_integration.redirect_options
   ]
 
   triggers = {
     redeployment = sha1(jsonencode([
+      aws_iam_role.lambda_role.id,
       aws_api_gateway_resource.create.id,
       aws_api_gateway_method.create.id,
       aws_api_gateway_integration.create.id,
       aws_api_gateway_resource.redirect.id,
       aws_api_gateway_method.redirect.id,
       aws_api_gateway_integration.redirect.id,
+      aws_api_gateway_method.create_options.id,
+      aws_api_gateway_integration.create_options.id,
+      aws_api_gateway_method.redirect_options.id,
+      aws_api_gateway_integration.redirect_options.id
     ]))
   }
 
