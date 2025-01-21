@@ -1,6 +1,6 @@
-# assignment-url-shortner
+# url-shortner
 
-## ## How to run the code
+## How to run the code
 
 To deploy the code and infrastructure on AWS easily using the `Makefile`, start by creating an `.env` file as shown below:
 
