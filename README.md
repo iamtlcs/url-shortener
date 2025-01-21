@@ -9,8 +9,6 @@ AWS_ACCESS_KEY_ID=<your_aws_access_key_id>
 AWS_SECRET_ACCESS_KEY=<your_aws_secret_access_key>
 ```
 
-The reason why I did not use `aws configure` is that I am using my own laptop for working.
-
 I am using my own laptop for work, which is why I did not use `aws configure`.
 
 After creating the `.env` file, run `make apply_terraform` to deploy the cloud infrastructure and the Python code in the `./create_short_url` and `./redirect_url` directories. These directories are divided to maintain a single responsibility for each API route. Only the `create_short_url` directory contains a `requirements.txt` file because I used `validator` to verify that the POST request is a valid URL. Other packages are either built-in with Python or come with AWS Lambda instances, such as `boto3`. Uploading ZIP files is preferred over using Docker images since the code is lightweight.
