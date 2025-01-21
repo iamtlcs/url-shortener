@@ -47,7 +47,12 @@ def handler(event, context):
         def generate_unique_suffix():
             suffix_length = 5
             characters = string.ascii_letters + string.digits
-            unique_suffix = ''.join(random.choice(characters) for _ in range(suffix_length))
+            is_used = True
+            unique_suffix = ""
+            while is_used:
+                unique_suffix = ''.join(random.choice(characters) for _ in range(suffix_length))
+                response = table.get_item(Key={'short_url': unique_suffix})
+                is_used = 'Item' in response
             return unique_suffix
         
         custom_suffix = body.get('suffix', generate_unique_suffix())
